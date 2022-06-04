@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -25,31 +26,35 @@ const (
 	DefaultCost int = 10
 )
 
+var validate *validator.Validate
+
+// Using pointer and "omitempty" in json tag for optinal tag
+// Because if the value is missing in the unmarshal step
+// the value will record as empty
+// by using * and "omitempty" there no field in the json object
 type User struct {
 	bun.BaseModel `bun:"table:users,alias:u"`
 	ID            int       `bun:",pk,autoincrement"   json:"id"`
-	Name          string    `bun:",notnull"            json:"name"`
-	Email         string    `bun:",notnull"            json:"email"`
-	Password      string    `bun:",notnull"            json:"password"`
-	LastLogin     time.Time `bun:""                    json:"last_login"`
+	Name          string    `bun:",unique,notnull"     json:"name"       validate:"required,alphanumunicode"`
+	Email         string    `bun:",unique,notnull"     json:"email"      validate:"required,email"`
+	Password      string    `bun:",notnull"            json:"password"   validate:"required,alphanumunicode"`
+	LastLogin     time.Time `bun:""                    json:"last_login"                                     vaidate:"reuired,datetime"`
 }
 
 type LoginForm struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email"    validate:"required,email"`
+	Password string `json:"password" validate:"required,alphanumunicode"`
 }
 
 type RegisterForm struct {
-	Name        string `json:"name"`
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	ConfirmPass string `json:"confirm_pass"`
+	Name     string `json:"name"     validate:"required,alphanumunicode"`
+	Email    string `json:"email"    validate:"required,email"`
+	Password string `json:"password" validate:"required,alphanumunicode"`
 }
 
 type Claims struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-	jwt.StandardClaims
+	Email              string `json:"email" validate:"required,email"`
+	jwt.StandardClaims `                    validate:"required"`
 }
 
 // Get local map secrets
@@ -68,7 +73,6 @@ func connectDB() (db *bun.DB) {
 	dsn := localEnv["DB_POSTGRES"]
 	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 	db = bun.NewDB(pgdb, pgdialect.New())
-
 	return
 }
 
@@ -76,7 +80,6 @@ func connectDB() (db *bun.DB) {
 func hashPassword(password string) (string, error) {
 	// Hashing password byte with default cost
 	hashedPassByte, err := bcrypt.GenerateFromPassword([]byte(password), DefaultCost)
-
 	return string(hashedPassByte), err
 }
 
@@ -86,7 +89,7 @@ func matchPassword(inputPass string, dbPass string) bool {
 	return err == nil
 }
 
-func generateToken(email string, id string) (tokenString string, err error) {
+func generateToken(email string) (tokenString string, err error) {
 	localEnv, err := getEnvMap()
 	if err != nil {
 		log.Panic("Failed to load .env file")
@@ -97,7 +100,6 @@ func generateToken(email string, id string) (tokenString string, err error) {
 
 	expirationTimes := time.Now().AddDate(0, 0, 7)
 	claims := &Claims{
-		ID:    id,
 		Email: email,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTimes.Unix(),
@@ -106,7 +108,6 @@ func generateToken(email string, id string) (tokenString string, err error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err = token.SignedString(secretByte)
-
 	return
 }
 
@@ -124,6 +125,21 @@ func createUsersTable(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// Generate user session
+func generateSession(w http.ResponseWriter, r *http.Request, userEmail string) {
+	tokenString, err := generateToken(userEmail)
+	var headerToken string = "Bearer " + tokenString
+
+	if err != nil {
+		log.Panic("Failed to get generated token string")
+	}
+
+	// Write token to return header
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Authorization", headerToken)
+	http.Redirect(w, r, "localhost:3000", http.StatusOK)
+}
+
 // Add new register user to database
 // Get user information from register form
 // Then unmarshal and create new user object
@@ -137,6 +153,44 @@ func addNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.Unmarshal(reqBody, &newRegister)
+
+	// Register form validation
+	validate = validator.New()
+	if err := validate.Struct(newRegister); err != nil {
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			log.Panic(err)
+		}
+
+		var errListMes string
+
+		for _, err := range err.(validator.ValidationErrors) {
+			errListMes += ", " + err.StructField()
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Missing values:" + errListMes[2:]))
+	}
+
+	// Prepare database
+	ctx := context.Background()
+	db := connectDB()
+
+	db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
+
+	// Check duplidate email in database
+	exists, err := db.NewSelect().
+		Model((*User)(nil)).
+		Where("email = ?", newRegister.Email).
+		WhereOr("name = ?", newRegister.Name).
+		Exists(ctx)
+	if err != nil {
+		log.Panic("Failed to check user exists")
+	}
+
+	if exists {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("User exists"))
+	}
 
 	// Encrypt user password
 	hashedPass, err := hashPassword(newRegister.Password)
@@ -152,32 +206,74 @@ func addNew(w http.ResponseWriter, r *http.Request) {
 		LastLogin: time.Now(),
 	}
 
-	// Save new user
+	// Save new user in database
+	if _, err := db.NewInsert().Model(newUser).Exec(ctx); err != nil {
+		log.Panic("Failed to save new user")
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	// Create login token
+	generateSession(w, r, newRegister.Email)
+}
+
+// Validate logine password and the hashed password
+// based on the user email
+func validateLogin(w http.ResponseWriter, r *http.Request) {
+	var newLogin LoginForm
+	reqBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Missing values from the request body"))
+	}
+
+	json.Unmarshal(reqBody, &newLogin)
+
+	// New login validation
+	validate = validator.New()
+	if err := validate.Struct(newLogin); err != nil {
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			log.Panic(err)
+		}
+
+		var errListMes string
+
+		for _, err := range err.(validator.ValidationErrors) {
+			errListMes += ", " + err.StructField()
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Missing values: " + errListMes))
+	}
+
+	// Loooking for user email in database
 	ctx := context.Background()
 	db := connectDB()
 
 	db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
+	foundUser := new(User)
 
-	res, err := db.NewInsert().Model(newUser).Returning("id").Exec(ctx)
-	if err != nil {
-		log.Panic("Failed to save new user")
-	}
-
-	// Create login token
-	tokenString, err := generateToken(newRegister.Email, res)
-	var headerToken string = "Bearer " + tokenString
+	err = db.NewSelect().Model(foundUser).Where("email = ?", newLogin.Email).Scan(ctx)
 
 	if err != nil {
-		log.Panic("Failed to get generated token string")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("User not found on database"))
 	}
 
-	// Write token to return header
-	w.WriteHeader(http.StatusCreated)
-	w.Header().Set("Authorization", headerToken)
-	http.Redirect(w, r, "localhost:3000/home", http.StatusOK)
-}
+	// Matching password
+	if isMatch := matchPassword(newLogin.Password, foundUser.Password); !isMatch {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Password is not correct"))
+	}
 
-func validateLogin(w http.ResponseWriter, r *http.Request) {
+	// Update user last login session
+	foundUser.LastLogin = time.Now()
+	if _, err = db.NewUpdate().Model(foundUser).WherePK().Exec(ctx); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed udpate user last login session"))
+	}
+
+	// Generate new session
+	generateSession(w, r, newLogin.Email)
 }
 
 func home(w http.ResponseWriter, r *http.Request) {
@@ -190,6 +286,8 @@ func startRouter() {
 
 	r.HandleFunc("/", home).Methods("GET")
 	r.HandleFunc("/users/table", createUsersTable).Methods("POST")
+	r.HandleFunc("/auth/register", addNew).Methods("POST")
+	r.HandleFunc("/auth/login", validateLogin).Methods("POST")
 
 	// Start server
 	srv := &http.Server{
