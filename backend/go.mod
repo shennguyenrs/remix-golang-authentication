@@ -1,4 +1,4 @@
-module remix-golang-authentication/backend
+module rga/backend
 
 go 1.18
 
