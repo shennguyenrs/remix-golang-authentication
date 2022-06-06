@@ -13,7 +13,9 @@ func StartServer() {
 	r := mux.NewRouter().StrictSlash(true)
 
 	r.HandleFunc("/", controllers.Home).Methods("GET")
-	r.HandleFunc("/table", controllers.ResetUserTable).Methods("POST")
+	r.HandleFunc("/admin/table", controllers.ResetUserTable).Methods("POST")
+	r.HandleFunc("/users/{id}", controllers.DeleteAccount).Methods("DELETE")
+	r.HandleFunc("/users/{id}", controllers.EditInfo).Methods("PATCH")
 	r.HandleFunc("/auth/register", controllers.Register).Methods("POST")
 	r.HandleFunc("/auth/login", controllers.Login).Methods("POST")
 

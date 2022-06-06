@@ -1,11 +1,15 @@
 package utils
 
 import (
-	"log"
+	"context"
+	"net/http"
 	"rga/backend/config"
+	"rga/backend/models"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/gorilla/mux"
 )
 
 type Claims struct {
@@ -14,14 +18,7 @@ type Claims struct {
 }
 
 func GenerateToken(email string) (tokenString string, err error) {
-	localEnv, err := config.GetEnvMap()
-	if err != nil {
-		log.Panic("Failed to load .env file")
-	}
-
-	secretString := localEnv["JWT_SECRET"]
-	secretByte := []byte(secretString)
-
+	secretByte := config.GetJwtSecret()
 	expirationTimes := time.Now().AddDate(0, 0, 7)
 	claims := &Claims{
 		Email: email,
@@ -32,5 +29,64 @@ func GenerateToken(email string) (tokenString string, err error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err = token.SignedString(secretByte)
+	return
+}
+
+func ValidateToken(w http.ResponseWriter, tokenString string, userId int) bool {
+	claims := &Claims{}
+
+	// Parse the JWT string and store the result in `claims`.
+	// Note that we are passing the key in this method as well. This method will return an error
+	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
+	// or if the signature does not match
+	tkn, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		return token, nil
+	})
+	if err != nil {
+		if err == jwt.ErrSignatureInvalid {
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		return false
+	}
+
+	if !tkn.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+
+	// Find the user email in the database and compare with user id
+	// If both are the same return true
+	// Else return unauthorized request
+	ctx := context.Background()
+	db := config.InitializeDB()
+	user := new(models.User)
+
+	if err := db.NewSelect().Model(user).Where("email = ?", claims.Email).Scan(ctx); err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+
+	if user.ID != userId {
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+
+	return true
+}
+
+func ExtractIdnToken(w http.ResponseWriter, r *http.Request) (userId int, token string) {
+	uIdString := mux.Vars(r)["id"]
+	tokenString := r.Header.Get("Authorization")
+
+	userId, err := strconv.Atoi(uIdString)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte("Failed to parse id"))
+	}
+
+	token = tokenString[6:]
 	return
 }

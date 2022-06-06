@@ -2,22 +2,18 @@ package config
 
 import (
 	"database/sql"
-	"log"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/uptrace/bun/extra/bundebug"
 )
 
 // Connect to Postgres database
 func InitializeDB() (db *bun.DB) {
-	localEnv, err := GetEnvMap()
-	if err != nil {
-		log.Panic("Failed to load .env file")
-	}
-
-	dsn := localEnv["DB_POSTGRES"]
+	dsn := GetDBString()
 	pgdb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 	db = bun.NewDB(pgdb, pgdialect.New())
+	db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	return
 }
