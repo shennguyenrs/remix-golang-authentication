@@ -4,8 +4,8 @@ services:
   postgres-db:
     image: postgres:latest
     restart: always
-    environment:
-      POSTGRES_PASSWORD: adminpass
+    env_file:
+      ./postgres.env
     volumes:
       - ../postgres_db:/var/lib/postgresql/data
     ports:
