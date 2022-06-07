@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/uptrace/bun/extra/bundebug"
 )
 
 var validate *validator.Validate
@@ -51,8 +50,6 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	// Prepare database
 	ctx := context.Background()
 	db := config.InitializeDB()
-
-	db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 
 	// Check duplidate email in database
 	exists, err := db.NewSelect().
@@ -126,7 +123,6 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	db := config.InitializeDB()
 
-	db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	foundUser := new(models.User)
 
 	err = db.NewSelect().Model(foundUser).Where("email = ?", newLogin.Email).Scan(ctx)
@@ -144,6 +140,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	// Update user last login session
 	foundUser.LastLogin = time.Now()
+
 	if _, err = db.NewUpdate().Model(foundUser).WherePK().Exec(ctx); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed udpate user last login session"))
