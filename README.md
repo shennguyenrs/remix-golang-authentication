@@ -1,4 +1,4 @@
-# Remix Js - Golang authentication Demo
+# Remix Js - Golang authentication
 
 My small demo authentication using [JWT](https://github.com/golang-jwt/jwt) in Golang.
 
