@@ -26,6 +26,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Request mising values"))
+		return
 	}
 
 	json.Unmarshal(reqBody, &newRegister)
@@ -45,6 +46,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Missing values:" + errListMes[2:]))
+		return
 	}
 
 	// Prepare database
@@ -64,6 +66,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	if exists {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("User exists"))
+		return
 	}
 
 	// Encrypt user password
@@ -71,6 +74,7 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed to hashing user password"))
+		return
 	}
 
 	newUser := &models.User{
@@ -81,13 +85,16 @@ func Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save new user in database
-	if _, err := db.NewInsert().Model(newUser).Exec(ctx); err != nil {
+	if _, err := db.NewInsert().Model(newUser).Returning("id").Exec(ctx); err != nil {
 		log.Panic("Failed to save new user")
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
+	log.Println(newUser)
+
 	// Create login token
-	utils.GenerateSession(w, r, newRegister.Email)
+	utils.GenerateSession(w, r, newRegister.Email, newUser.ID)
 }
 
 // Validate logine password and the hashed password
@@ -98,6 +105,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Missing values from the request body"))
+		return
 	}
 
 	json.Unmarshal(reqBody, &newLogin)
@@ -116,7 +124,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Missing values: " + errListMes))
+		w.Write([]byte("Missing values: " + errListMes[2:]))
+		return
 	}
 
 	// Loooking for user email in database
@@ -130,12 +139,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("User not found on database"))
+		return
 	}
 
 	// Matching password
 	if isMatch := utils.MatchingPassword(newLogin.Password, foundUser.Password); !isMatch {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Password is not correct"))
+		return
 	}
 
 	// Update user last login session
@@ -144,8 +155,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	if _, err = db.NewUpdate().Model(foundUser).WherePK().Exec(ctx); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Failed udpate user last login session"))
+		return 
 	}
 
 	// Generate new session
-	utils.GenerateSession(w, r, newLogin.Email)
+	utils.GenerateSession(w, r, newLogin.Email, foundUser.ID)
 }
