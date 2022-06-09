@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  h1 {
+    @apply font-bold text-4xl underline decoration-blue-500;
+  }
+
+  input {
+    @apply mb-5 mt-1 px-3 py-1 border-2 rounded-md;
+  }
+}
+
+@layer components {
+  .rootWrapper {
+    @apply w-screen h-screen flex flex-col justify-center items-center;
+  }
+  .formCon {
+    @apply my-20 flex flex-col;
+  }
+
+  .btnLink-base {
+    @apply px-5 py-2 rounded-md;
+  }
+}
