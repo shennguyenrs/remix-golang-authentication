@@ -3,17 +3,19 @@ version: "3.8"
 services:
   postgres-db:
     image: postgres:latest
+    container_name: postgres-db
     restart: always
     env_file:
-      ./postgres.env
+      ./postgres/.env
     volumes:
-      - ../postgres_db:/var/lib/postgresql/data
+      - rga-db:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
   backend:
-    build: ../backend/
+    build: ./backend/
     image: rga-backend
+    container_name: rga-backend
     restart: always
     depends_on:
       - postgres-db
@@ -21,6 +23,5 @@ services:
       - "3001:3001"
     network_mode: "host"
 
-# volumes:
-#   rga-db:
-#     driver: local
+volumes:
+  rga-db:

@@ -10,6 +10,25 @@ import (
 	"rga/backend/utils"
 )
 
+func GetAccount(w http.ResponseWriter, r *http.Request) {
+	userId, token := utils.ExtractIdnToken(w, r)
+
+	if isValidToken := utils.ValidateToken(w, token, userId); isValidToken {
+		// Return account using user id
+		ctx := context.Background()
+		db := config.InitializeDB()
+		var user models.User
+
+		if _, err := db.NewSelect().Where("id = ?", userId).Model(&user).Exec(ctx); err != nil {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(user)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Failed to get user"))
+		}
+	}
+}
+
 func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	userId, token := utils.ExtractIdnToken(w, r)
 

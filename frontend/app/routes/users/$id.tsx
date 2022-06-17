@@ -2,7 +2,6 @@ import type { LoaderFunction } from '@remix-run/node';
 import { useLoaderData } from '@remix-run/react';
 
 export const loader: LoaderFunction = async ({ params }) => {
-  const;
 };
 
 export default function UserPage() {
