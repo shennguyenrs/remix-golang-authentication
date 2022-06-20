@@ -3,6 +3,7 @@ import type { ErrorBoundaryComponent } from '@remix-run/react/routeModules';
 import type { ActionFunction } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
 import axios from 'axios';
+import * as libs from "../../libs"
 
 export const action: ActionFunction = async ({ request }) => {
   const form = await request.formData();
@@ -16,7 +17,7 @@ export const action: ActionFunction = async ({ request }) => {
   }
 
   try {
-    const res = await axios.post(process.env.BACKEND_AUTH + '/register', {
+    const res = await axios.post(libs.routes.auth as string + '/register', {
       name,
       email,
       password,

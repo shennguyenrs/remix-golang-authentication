@@ -60,7 +60,9 @@ func Register(w http.ResponseWriter, r *http.Request) {
 		WhereOr("name = ?", newRegister.Name).
 		Exists(ctx)
 	if err != nil {
-		log.Panic("Failed to check user exists")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed to check user exists"))
+		return
 	}
 
 	if exists {

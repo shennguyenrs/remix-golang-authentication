@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"rga/backend/config"
 	"rga/backend/models"
@@ -14,8 +13,12 @@ func ResetUserTable(w http.ResponseWriter, r *http.Request) {
 	db := config.InitializeDB()
 
 	if err := db.ResetModel(ctx, (*models.User)(nil)); err != nil {
-		log.Panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed to reset user table"))
+		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte("Reset user table successfully"))
+	return
 }

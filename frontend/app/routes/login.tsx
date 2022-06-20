@@ -16,6 +16,7 @@ export const action: ActionFunction = async ({ request }) => {
 
     if (res) {
       const { token, userId } = res.data;
+			console.log(token)
       request.headers.set('Authorization', token);
       return redirect('/users/' + userId);
     }
