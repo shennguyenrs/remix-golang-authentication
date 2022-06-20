@@ -1,4 +1,5 @@
 *.env
 *.sh
+.eslintcache
 
 postgres_db/

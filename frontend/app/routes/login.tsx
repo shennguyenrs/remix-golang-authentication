@@ -2,23 +2,30 @@ import type { ActionFunction, ErrorBoundaryComponent } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
 import { Form } from '@remix-run/react';
 import axios from 'axios';
+import * as libs from '../../libs';
 
 export const action: ActionFunction = async ({ request }) => {
   const form = await request.formData();
   const email = form.get('email');
   const password = form.get('password');
+  const cookieHeader = request.headers.get('Cookie');
 
   try {
-    const res = await axios.post(process.env.BACKEND_AUTH + '/login', {
+    const res = await axios.post((libs.routes.auth as string) + '/login', {
       email,
       password,
     });
 
     if (res) {
       const { token, userId } = res.data;
-			console.log(token)
-      request.headers.set('Authorization', token);
-      return redirect('/users/' + userId);
+      const cookie = (await libs.userPref.parse(cookieHeader)) || {};
+      cookie.token = token;
+
+      return redirect('/users/' + userId, {
+        headers: {
+          'Set-Cookie': await libs.userPref.serialize(cookie),
+        },
+      });
     }
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {

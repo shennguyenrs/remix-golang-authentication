@@ -3,7 +3,7 @@ import type { ErrorBoundaryComponent } from '@remix-run/react/routeModules';
 import type { ActionFunction } from '@remix-run/node';
 import { redirect } from '@remix-run/node';
 import axios from 'axios';
-import * as libs from "../../libs"
+import * as libs from '../../libs';
 
 export const action: ActionFunction = async ({ request }) => {
   const form = await request.formData();
@@ -11,13 +11,14 @@ export const action: ActionFunction = async ({ request }) => {
   const email = form.get('email');
   const password = form.get('password');
   const confirmPassword = form.get('confirmPassword');
+  const cookieHeader = request.headers.get('Cookie');
 
   if (password !== confirmPassword) {
     throw new Error('Passwords do not match');
   }
 
   try {
-    const res = await axios.post(libs.routes.auth as string + '/register', {
+    const res = await axios.post((libs.routes.auth as string) + '/register', {
       name,
       email,
       password,
@@ -25,8 +26,14 @@ export const action: ActionFunction = async ({ request }) => {
 
     if (res) {
       const { token, userId } = res.data;
-      request.headers.set('Authorization', token);
-      return redirect('/users/' + userId);
+      const cookie = (await libs.userPref.parse(cookieHeader)) || {};
+      cookie.token = token;
+
+      return redirect('/users/' + userId, {
+        headers: {
+          'Set-Cookie': await libs.userPref.serialize(cookie),
+        },
+      });
     }
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
