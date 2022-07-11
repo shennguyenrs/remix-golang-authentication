@@ -33,48 +33,47 @@ func GenerateToken(email string) (tokenString string, err error) {
 }
 
 func ValidateToken(w http.ResponseWriter, tokenString string, userId int) bool {
-	claims := &Claims{}
+	secretByte := config.GetJwtSecret()
 
 	// Parse the JWT string and store the result in `claims`.
 	// Note that we are passing the key in this method as well. This method will return an error
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
-	tkn, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return token, nil
+	tkn, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return secretByte, nil
 	})
+
 	if err != nil {
-		if err == jwt.ErrSignatureInvalid {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Parsing token error"))
+		return false
+	}
+
+	if claims, ok := tkn.Claims.(*Claims); !ok || !tkn.Valid {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Parsing claims error"))
+		return false
+	} else {
+
+		// Find the user email in the database and compare with user id
+		// If both are the same return true
+		// Else return unauthorized request
+		ctx := context.Background()
+		db := config.InitializeDB()
+		user := new(models.User)
+
+		if err := db.NewSelect().Model(user).Where("email = ?", claims.Email).Scan(ctx); err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return false
 		}
 
-		w.WriteHeader(http.StatusBadRequest)
-		return false
+		if user.ID != userId {
+			w.WriteHeader(http.StatusUnauthorized)
+			return false
+		}
+
+		return true
 	}
-
-	if !tkn.Valid {
-		w.WriteHeader(http.StatusUnauthorized)
-		return false
-	}
-
-	// Find the user email in the database and compare with user id
-	// If both are the same return true
-	// Else return unauthorized request
-	ctx := context.Background()
-	db := config.InitializeDB()
-	user := new(models.User)
-
-	if err := db.NewSelect().Model(user).Where("email = ?", claims.Email).Scan(ctx); err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		return false
-	}
-
-	if user.ID != userId {
-		w.WriteHeader(http.StatusUnauthorized)
-		return false
-	}
-
-	return true
 }
 
 func ExtractIdnToken(w http.ResponseWriter, r *http.Request) (userId int, token string) {
@@ -87,6 +86,6 @@ func ExtractIdnToken(w http.ResponseWriter, r *http.Request) (userId int, token 
 		w.Write([]byte("Failed to parse id"))
 	}
 
-	token = tokenString[6:]
+	token = tokenString[7:]
 	return
 }
