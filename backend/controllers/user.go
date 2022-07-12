@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"rga/backend/config"
 	"rga/backend/models"
@@ -50,37 +49,4 @@ func DeleteAccount(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-}
-
-func EditInfo(w http.ResponseWriter, r *http.Request) {
-	reqBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Missing new user information"))
-		return
-	}
-
-	userId, token := utils.ExtractIdnToken(w, r)
-
-	if isValidToken := utils.ValidateToken(w, token, userId); isValidToken {
-		// Update user information based on te request body
-		ctx := context.Background()
-		db := config.InitializeDB()
-
-		var updateUser models.User
-
-		json.Unmarshal(reqBody, &updateUser)
-
-		if _, err := db.NewUpdate().Model(updateUser).WherePK().Exec(ctx); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Failed to update user record"))
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-	} else {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("Unauthorizied request"))
-	}
-
-	return
 }

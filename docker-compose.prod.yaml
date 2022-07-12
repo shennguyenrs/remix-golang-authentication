@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  postgres-db:
+    image: postgres:latest
+    container_name: postgres-db
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      ./postgres/.env
+    volumes:
+      - rga-db:/var/lib/postgresql/data
+    expose:
+      - 5432
+    networks:
+      - rga-silent
+
+  backend:
+    build: ./backend/
+    image: rga-backend
+    container_name: rga-backend
+    restart: always
+    depends_on:
+      - postgres-db
+    ports:
+      - "3001:3001"
+    networks:
+      - rga-silent
+
+  frontend:
+    build: ./frontend
+    image: rga-frontend
+    container_name: rga-frontend
+    ports:
+      - "3000:3000"
+
+volumes:
+  rga-db:
+
+networks:
+  rga-silent:

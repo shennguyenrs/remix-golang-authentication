@@ -44,11 +44,23 @@ export const ErrorBoundary: ErrorBoundaryComponent = ({ error }) => {
 export default function UserPage() {
   const { name } = useLoaderData();
 
+  const handleLogout = () => {
+    console.log('Logout');
+  };
+
+  const handleDelete = () => {
+    console.log('Account delete');
+  };
+
   return (
     <div className="rootWrapper">
       <h1>Welcome back, {name}</h1>
-      <button className="btnLink-base">Logout</button>
-      <button className="btnLink-base">Delete account</button>
+      <button className="btnLink-base" onClick={handleLogout}>
+        Logout
+      </button>
+      <button className="btnLink-base" onClick={handleDelete}>
+        Delete account
+      </button>
     </div>
   );
 }

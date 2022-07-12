@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  postgres-db:
+    image: postgres:latest
+    container_name: postgres-db
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      ./postgres/.env
+    volumes:
+      - rga-db:/var/lib/postgresql/data
+    expose:
+      - 5432
+
+volumes:
+  rga-db:

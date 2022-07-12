@@ -17,7 +17,6 @@ func StartServer() {
 	r.HandleFunc("/admin/table", controllers.ResetUserTable).Methods("POST")
 	r.HandleFunc("/users/{id}", controllers.GetAccount).Methods("GET")
 	r.HandleFunc("/users/{id}", controllers.DeleteAccount).Methods("DELETE")
-	r.HandleFunc("/users/{id}", controllers.EditInfo).Methods("PATCH")
 	r.HandleFunc("/auth/register", controllers.Register).Methods("POST")
 	r.HandleFunc("/auth/login", controllers.Login).Methods("POST")
 
