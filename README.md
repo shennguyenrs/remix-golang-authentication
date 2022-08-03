@@ -2,7 +2,7 @@
 
 My small demo authentication using [JWT](https://github.com/golang-jwt/jwt) in Golang.
 
-- [] Frontend: [Remix Js](https://github.com/remix-run/remix), [TailwindCSS](https://github.com/tailwindlabs/tailwindcss)
+- [ ] Frontend: [Remix Js](https://github.com/remix-run/remix), [TailwindCSS](https://github.com/tailwindlabs/tailwindcss)
   - [x] Home page
   - [x] Login page
   - [x] Register page
